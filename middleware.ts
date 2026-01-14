@@ -45,9 +45,13 @@ const AUTH_MODE: "disabled" | "public-by-default" | "private-by-default" = "publ
  */
 const protectedRoutes = [
   "/dashboard",
+  "/clients",
+  "/matters",
+  "/transactions",
+  "/holds",
+  "/reports",
+  "/audit",
   "/settings",
-  "/account",
-  "/admin",
 ];
 
 /**
@@ -126,8 +130,10 @@ export function middleware(request: NextRequest) {
       break;
   }
 
-  // Check for Better Auth session cookie
-  const sessionCookie = request.cookies.get("better-auth.session_token");
+  // Check for session cookie (supports both Better Auth and local auth)
+  const sessionCookie =
+    request.cookies.get("better-auth.session_token") ||
+    request.cookies.get("iolta:local-session");
 
   if (!sessionCookie) {
     // No session - redirect to login

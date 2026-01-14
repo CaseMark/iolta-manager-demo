@@ -30,7 +30,6 @@ bun add git+ssh://git@github.com:stainless-sdks/router-typescript.git
 ```env
 # .env.local
 CASE_API_KEY=sk_case_...
-CASEDEV_API_KEY=sk_case_...
 ```
 
 ### Initialize Client
@@ -40,7 +39,7 @@ CASEDEV_API_KEY=sk_case_...
 import Casedev from 'casedev';
 
 export const casedev = new Casedev({
-  apiKey: process.env.CASEDEV_API_KEY!,
+  apiKey: process.env.CASE_API_KEY!,
   environment: 'production', // or 'local' for development
 });
 ```
@@ -577,12 +576,14 @@ export async function processDeposition(audioFile: File) {
 
 ### API Keys
 
+All API references should use the `CASE_API_KEY` environment variable:
+
 ```env
 # Production keys start with sk_case_
-CASEDEV_API_KEY=sk_case_prod_...
+CASE_API_KEY=sk_case_prod_...
 
 # Development keys for testing
-CASEDEV_API_KEY=sk_case_dev_...
+CASE_API_KEY=sk_case_dev_...
 ```
 
 ## Rate Limits

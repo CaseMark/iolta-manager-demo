@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth/client";
+import { useAuth } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,7 @@ interface SignupFormProps {
 /**
  * Signup Form Component
  *
- * Handles user registration with Better Auth.
+ * Handles user registration with local IndexedDB auth.
  * Creates a new account with email/password.
  *
  * @example
@@ -26,6 +26,7 @@ interface SignupFormProps {
  */
 export function SignupForm({ callbackUrl = "/dashboard", className }: SignupFormProps) {
   const router = useRouter();
+  const { signUp } = useAuth();
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -52,21 +53,10 @@ export function SignupForm({ callbackUrl = "/dashboard", className }: SignupForm
     setLoading(true);
 
     try {
-      const { data, error: authError } = await authClient.signUp.email({
-        email,
-        password,
-        name,
-      });
-
-      if (authError) {
-        setError(authError.message || "Failed to create account");
-        setLoading(false);
-        return;
-      }
-
+      await signUp.email({ email, password, name });
       router.push(callbackUrl);
     } catch (err) {
-      setError("An unexpected error occurred");
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
       setLoading(false);
     }
   };

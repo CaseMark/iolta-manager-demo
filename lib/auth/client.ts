@@ -1,89 +1,121 @@
 /**
- * Better Auth Client Configuration
+ * Auth Client for IOLTA Manager
  *
- * This is the client-side authentication configuration.
- * Use these exports in React components for auth operations.
+ * Client-side authentication exports that mirror Better Auth API surface.
+ * This enables easy migration between client-side and server-side auth.
  *
- * @see skills/auth/SKILL.md for detailed documentation
+ * For client-side (demo) auth: Uses IndexedDB
+ * For production: Replace with Better Auth client
+ *
+ * @see docs/AUTH.md for architecture details
+ * @see skills/auth/SKILL.md for Better Auth setup
  */
 
-"use client";
+'use client';
 
-import { createAuthClient } from "better-auth/react";
-import { organizationClient, twoFactorClient } from "better-auth/client/plugins";
-import { ac, roles } from "./permissions";
-
-/**
- * Auth client instance
- * Provides hooks and methods for authentication in React components
- */
-export const authClient = createAuthClient({
-  /**
-   * Base URL for auth API
-   * In development, this is typically http://localhost:3000
-   * In production, this should be your app's URL
-   */
-  baseURL:
-    typeof window !== "undefined"
-      ? window.location.origin
-      : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-
-  plugins: [
-    /**
-     * Organization Plugin
-     * Provides methods for managing organizations, members, and invitations
-     */
-    organizationClient({
-      ac,
-      roles,
-    }),
-
-    /**
-     * Two-Factor Authentication Plugin
-     * Provides methods for 2FA setup and verification
-     */
-    twoFactorClient({
-      /**
-       * Called when user needs to verify 2FA during sign in
-       * Customize this to redirect to your 2FA verification page
-       */
-      onTwoFactorRedirect() {
-        if (typeof window !== "undefined") {
-          window.location.href = "/verify-2fa";
-        }
-      },
-    }),
-  ],
-});
-
-/**
- * Destructured exports for convenient use
- *
- * Usage in components:
- * import { useSession, signIn, signOut } from "@/lib/auth/client";
- */
-export const {
-  // Session
+// Re-export hooks from auth context
+export {
+  AuthProvider,
+  useAuth,
   useSession,
-
-  // Authentication
-  signIn,
-  signUp,
-  signOut,
-
-  // Organization (when using org plugin)
   useActiveOrganization,
   useListOrganizations,
+} from './auth-context';
 
-  // Two-Factor (when using 2FA plugin)
-  twoFactor,
-} = authClient;
+// Re-export auth operations (for direct use)
+export {
+  signInEmail,
+  signUpEmail,
+  signOut,
+  getSession,
+  createOrganization,
+  getOrganizations,
+  getActiveOrganization,
+  setActiveOrganization,
+} from './local-auth';
+
+// Re-export debug utilities
+export {
+  listAllUsers,
+  deleteUserByEmail,
+  clearAllSessions,
+  clearAllAuthData,
+  validateSessionSync,
+} from './local-auth';
+
+// Export a compatible authClient object for direct method access
+import { useAuth } from './auth-context';
 
 /**
- * Organization methods (namespaced)
+ * Auth client compatible interface
  *
  * Usage:
- * import { organization } from "@/lib/auth/client";
- * await organization.create({ name: "My Firm", slug: "my-firm" });
+ * const { signIn, signOut, organization } = authClient;
+ * await signIn.email({ email, password });
  */
-export const { organization } = authClient;
+export const authClient = {
+  get signIn() {
+    // This is a getter that returns the signIn methods
+    // Note: This won't work outside of React components
+    // Use useAuth() hook instead
+    throw new Error('Use useAuth() hook to access signIn methods');
+  },
+  get signUp() {
+    throw new Error('Use useAuth() hook to access signUp methods');
+  },
+  get signOut() {
+    throw new Error('Use useAuth() hook to access signOut method');
+  },
+  get organization() {
+    throw new Error('Use useAuth() hook to access organization methods');
+  },
+};
+
+// For components that need direct access to signIn/signOut functions
+import {
+  signInEmail as signIn,
+  signUpEmail as signUp,
+  signOut as signOutFn,
+} from './local-auth';
+
+/**
+ * Direct sign in function (for use outside of auth context)
+ */
+export { signIn, signUp, signOutFn };
+
+/**
+ * Organization namespace for direct access
+ */
+export const organization = {
+  create: async (data: { name: string; slug: string; logo?: string }, userId: string) => {
+    const { createOrganization } = await import('./local-auth');
+    return createOrganization(data, userId);
+  },
+  list: async (userId: string) => {
+    const { getOrganizations } = await import('./local-auth');
+    return getOrganizations(userId);
+  },
+  setActive: async (orgId: string) => {
+    const { setActiveOrganization } = await import('./local-auth');
+    return setActiveOrganization(orgId);
+  },
+  getActive: async () => {
+    const { getActiveOrganization } = await import('./local-auth');
+    return getActiveOrganization();
+  },
+};
+
+/**
+ * Two-factor placeholder (not implemented in client-side auth)
+ */
+export const twoFactor = {
+  enable: async () => {
+    throw new Error('2FA not available in client-side auth mode');
+  },
+  disable: async () => {
+    throw new Error('2FA not available in client-side auth mode');
+  },
+  verify: async () => {
+    throw new Error('2FA not available in client-side auth mode');
+  },
+};

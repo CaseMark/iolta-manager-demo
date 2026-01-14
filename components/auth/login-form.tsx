@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth/client";
+import { useAuth } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,14 +18,14 @@ interface LoginFormProps {
 /**
  * Login Form Component
  *
- * Handles email/password authentication with Better Auth.
- * Automatically redirects to 2FA verification if enabled.
+ * Handles email/password authentication with local IndexedDB auth.
  *
  * @example
  * <LoginForm callbackUrl="/dashboard" />
  */
 export function LoginForm({ callbackUrl = "/dashboard", className }: LoginFormProps) {
   const router = useRouter();
+  const { signIn } = useAuth();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -37,26 +37,10 @@ export function LoginForm({ callbackUrl = "/dashboard", className }: LoginFormPr
     setLoading(true);
 
     try {
-      const { data, error: authError } = await authClient.signIn.email({
-        email,
-        password,
-      });
-
-      if (authError) {
-        setError(authError.message || "Failed to sign in");
-        setLoading(false);
-        return;
-      }
-
-      // Check if 2FA verification is required
-      if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) {
-        router.push("/verify-2fa");
-        return;
-      }
-
+      await signIn.email({ email, password });
       router.push(callbackUrl);
     } catch (err) {
-      setError("An unexpected error occurred");
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
       setLoading(false);
     }
   };
