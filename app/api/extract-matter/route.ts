@@ -283,15 +283,11 @@ async function processWithOCR(file: File): Promise<string> {
     }
 
     const submitResult = await submitResponse.json();
-    console.log('OCR submit response:', JSON.stringify(submitResult, null, 2));
-
     const jobId = submitResult.job_id || submitResult.id || submitResult.jobId;
 
     if (!jobId) {
       throw new Error('OCR service did not return a job ID');
     }
-
-    console.log('Using job ID:', jobId);
 
     // Poll for completion (max 90 seconds)
     const statusUrl = `${CASE_API_BASE}/ocr/v1/${jobId}`;
@@ -311,22 +307,49 @@ async function processWithOCR(file: File): Promise<string> {
       const status = await statusResponse.json();
 
       if (status.status === 'completed') {
-        let text = status.text || status.result?.text;
+        let text = status.text || status.result?.text || status.extracted_text || status.content;
 
-        // Try text endpoint if not in status response
+        // If text is in pages array, concatenate all page texts
+        if (!text && status.pages && Array.isArray(status.pages)) {
+          text = status.pages
+            .map((page: { text?: string; content?: string }) => page.text || page.content || '')
+            .join('\n\n');
+        }
+
+        // Try download/json endpoint if not in status response (CRITICAL: must use /download/json)
         if (!text) {
-          const textUrl = `${CASE_API_BASE}/ocr/v1/${jobId}/text`;
-          const textResponse = await fetch(textUrl, {
+          const jsonUrl = `${CASE_API_BASE}/ocr/v1/${jobId}/download/json`;
+          const jsonResponse = await fetch(jsonUrl, {
             method: 'GET',
             headers: { Authorization: `Bearer ${apiKey}` },
           });
-          if (textResponse.ok) {
-            text = await textResponse.text();
+
+          if (jsonResponse.ok) {
+            const contentType = jsonResponse.headers.get('content-type') || '';
+
+            if (contentType.includes('application/json')) {
+              const jsonResult = await jsonResponse.json();
+
+              // Try common field patterns
+              text = jsonResult.text || jsonResult.extracted_text || jsonResult.content;
+
+              // Check pages array
+              if (!text && jsonResult.pages && Array.isArray(jsonResult.pages)) {
+                text = jsonResult.pages
+                  .map((page: { text?: string; content?: string }) => page.text || page.content || '')
+                  .join('\n\n');
+              }
+            } else {
+              // Plain text response
+              text = await jsonResponse.text();
+            }
+          } else {
+            console.error('OCR result fetch failed:', jsonResponse.status, await jsonResponse.text());
           }
         }
 
         if (!text) {
-          throw new Error('OCR completed but no text was returned');
+          throw new Error('OCR completed but no text was returned. The document may be empty or unscannable.');
         }
 
         return text;

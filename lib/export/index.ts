@@ -318,50 +318,113 @@ function renderPDFTable(
     return x;
   };
 
-  // Helper to wrap text into multiple lines that fit the column width
-  // For numeric columns (alignRight), never wrap - return single line
-  const wrapText = (text: string, maxWidth: number, fontSize: number, colIndex: number): string[] => {
+  // Helper to check if a word fits within the available width
+  const wordFits = (word: string, maxWidth: number, fontSize: number): boolean => {
     doc.setFontSize(fontSize);
-    const cleanText = text.replace(/\n/g, ' ').trim();
-
-    // Numeric columns should never wrap
-    if (alignRight.includes(colIndex)) {
-      return [cleanText];
-    }
-
-    if (maxWidth <= 0) return [cleanText];
-    const lines = doc.splitTextToSize(cleanText, maxWidth);
-    return lines;
+    return doc.getTextWidth(word) <= maxWidth;
   };
 
-  // Helper to render a cell with wrapped text
+  // Helper to find the minimum font size needed for all words to fit
+  const findFontSizeForWords = (words: string[], maxWidth: number, startFontSize: number, minFontSize: number = 6): number => {
+    let fontSize = startFontSize;
+    while (fontSize > minFontSize) {
+      doc.setFontSize(fontSize);
+      const allWordsFit = words.every(word => doc.getTextWidth(word) <= maxWidth);
+      if (allWordsFit) return fontSize;
+      fontSize -= 0.5;
+    }
+    return minFontSize;
+  };
+
+  // Smart text wrapping that never breaks words mid-word
+  // Instead, shrinks font size if a word doesn't fit
+  const wrapTextNoBreak = (text: string, maxWidth: number, fontSize: number): { lines: string[], fontSize: number } => {
+    const cleanText = text.replace(/\n/g, ' ').trim();
+    const words = cleanText.split(/\s+/).filter(w => w.length > 0);
+
+    if (words.length === 0) return { lines: [''], fontSize };
+    if (maxWidth <= 0) return { lines: [cleanText], fontSize };
+
+    // First, check if any word is too wide and find appropriate font size
+    let currentFontSize = fontSize;
+    doc.setFontSize(currentFontSize);
+
+    const longestWord = words.reduce((a, b) =>
+      doc.getTextWidth(a) > doc.getTextWidth(b) ? a : b
+    );
+
+    if (!wordFits(longestWord, maxWidth, currentFontSize)) {
+      currentFontSize = findFontSizeForWords([longestWord], maxWidth, fontSize);
+    }
+
+    // Now wrap text at word boundaries with the adjusted font size
+    doc.setFontSize(currentFontSize);
+    const lines: string[] = [];
+    let currentLine = '';
+
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const testWidth = doc.getTextWidth(testLine);
+
+      if (testWidth <= maxWidth) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) {
+          lines.push(currentLine);
+        }
+        currentLine = word;
+      }
+    }
+
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+
+    return { lines: lines.length > 0 ? lines : [''], fontSize: currentFontSize };
+  };
+
+  // Helper to render a cell with smart text wrapping (no word breaks)
   const renderCell = (
     text: string,
     colIndex: number,
     colW: number,
     fontSize: number,
     maxLines: number
-  ): string[] => {
+  ): { lines: string[], fontSize: number } => {
     const availableWidth = colW - cellPadding * 2;
-    let lines = wrapText(text, availableWidth, fontSize, colIndex);
+    const cleanText = text.replace(/\n/g, ' ').trim();
 
-    // Only try smaller font for text columns that have too many lines
-    if (!alignRight.includes(colIndex) && lines.length > maxLines && fontSize > 8) {
-      const smallerFont = Math.max(8, fontSize - 1);
-      lines = wrapText(text, availableWidth, smallerFont, colIndex);
-      doc.setFontSize(smallerFont);
+    // Numeric/right-aligned columns: never wrap, just shrink if needed
+    if (alignRight.includes(colIndex)) {
+      doc.setFontSize(fontSize);
+      let currentSize = fontSize;
+      while (doc.getTextWidth(cleanText) > availableWidth && currentSize > 6) {
+        currentSize -= 0.5;
+        doc.setFontSize(currentSize);
+      }
+      return { lines: [cleanText], fontSize: currentSize };
     }
 
-    return lines;
+    // Text columns: wrap at word boundaries, shrink if needed
+    let result = wrapTextNoBreak(cleanText, availableWidth, fontSize);
+
+    // If still too many lines, try smaller font
+    if (result.lines.length > maxLines && result.fontSize > 7) {
+      const smallerResult = wrapTextNoBreak(cleanText, availableWidth, result.fontSize - 1);
+      if (smallerResult.lines.length <= result.lines.length) {
+        result = smallerResult;
+      }
+    }
+
+    return result;
   };
 
   // Calculate row height based on wrapped content (only text columns can wrap)
   const calculateRowHeight = (row: string[], fontSize: number): number => {
     let maxLines = 1;
     row.forEach((cell, i) => {
-      const availableWidth = colWidths[i] - cellPadding * 2;
-      const lines = wrapText(cell, availableWidth, fontSize, i);
-      maxLines = Math.max(maxLines, lines.length);
+      const result = renderCell(cell, i, colWidths[i], fontSize, 10);
+      maxLines = Math.max(maxLines, result.lines.length);
     });
     return Math.max(minRowHeight, maxLines * lineHeight + cellPadding);
   };
@@ -379,11 +442,11 @@ function renderPDFTable(
     const colX = getColX(i);
     const colW = colWidths[i];
     const align = alignRight.includes(i) ? 'right' : 'left';
-    const lines = renderCell(header, i, colW, FONT_SIZE_SMALL, 2);
-    doc.setFontSize(FONT_SIZE_SMALL);
+    const result = renderCell(header, i, colW, FONT_SIZE_SMALL, 2);
+    doc.setFontSize(result.fontSize);
     doc.setFont(FONT_FAMILY, 'bold');
 
-    lines.forEach((line, lineIdx) => {
+    result.lines.forEach((line, lineIdx) => {
       const textX = align === 'right' ? colX + colW - cellPadding : colX + cellPadding;
       doc.text(line, textX, y + lineIdx * lineHeight, { align });
     });
@@ -412,12 +475,12 @@ function renderPDFTable(
       const colX = getColX(i);
       const colW = colWidths[i];
       const align = alignRight.includes(i) ? 'right' : 'left';
-      const lines = renderCell(cell, i, colW, FONT_SIZE_SMALL, 3);
+      const result = renderCell(cell, i, colW, FONT_SIZE_SMALL, 3);
 
-      doc.setFontSize(FONT_SIZE_SMALL);
+      doc.setFontSize(result.fontSize);
       doc.setFont(FONT_FAMILY, 'normal');
 
-      lines.forEach((line, lineIdx) => {
+      result.lines.forEach((line, lineIdx) => {
         const textX = align === 'right' ? colX + colW - cellPadding : colX + cellPadding;
         doc.text(line, textX, y + lineIdx * lineHeight, { align });
       });
@@ -447,11 +510,11 @@ function renderPDFTable(
       const colX = getColX(i);
       const colW = colWidths[i];
       const align = alignRight.includes(i) ? 'right' : 'left';
-      const lines = renderCell(cell, i, colW, FONT_SIZE_SMALL, 2);
-      doc.setFontSize(FONT_SIZE_SMALL);
+      const result = renderCell(cell, i, colW, FONT_SIZE_SMALL, 2);
+      doc.setFontSize(result.fontSize);
       doc.setFont(FONT_FAMILY, 'bold');
 
-      lines.forEach((line, lineIdx) => {
+      result.lines.forEach((line, lineIdx) => {
         const textX = align === 'right' ? colX + colW - cellPadding : colX + cellPadding;
         doc.text(line, textX, y + lineIdx * lineHeight, { align });
       });
