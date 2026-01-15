@@ -73,7 +73,7 @@
   --chart-3: hsl(142 50% 45%);            /* green */
   --chart-4: hsl(20 5% 50%);              /* warm gray */
   --chart-5: hsl(0 72% 51%);              /* red */
-  --radius: 0.5rem;                          /* 8px - balanced corners */
+  --radius: 0.25rem;                          /* 4px - subtle corners */
   --sidebar: hsl(20 10% 12%);             /* dark sidebar */
   --sidebar-foreground: hsl(40 6% 90%);
   --sidebar-primary: hsl(24 100% 50%);    /* orange */

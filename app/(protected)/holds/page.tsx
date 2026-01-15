@@ -8,7 +8,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import { useSession } from '@/lib/auth/client';
+import { useSession } from '@/lib/contexts/user-context';
 import { getHoldsByUser, getMatter, getClient, getClientsByUser } from '@/lib/storage';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card, CardContent } from '@/components/ui/card';

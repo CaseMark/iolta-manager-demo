@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useSession } from '@/lib/auth/client';
+import { useSession } from '@/lib/contexts/user-context';
 import {
   getMattersWithBalances,
   getTransactionsByUser,

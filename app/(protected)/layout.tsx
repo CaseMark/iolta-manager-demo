@@ -1,50 +1,36 @@
 'use client';
 
 /**
- * Protected Layout
+ * App Layout
  *
- * Layout for authenticated routes. Includes sidebar navigation.
+ * Main layout for the application. Includes sidebar navigation
+ * and demo usage tracking. No authentication required.
  */
 
-import { useSession } from '@/lib/auth/client';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
+import { UserProvider } from '@/lib/contexts/user-context';
+import { UsageProvider } from '@/lib/contexts/usage-context';
+import { UsageBanner, LimitExceededDialog } from '@/components/demo';
 
-export default function ProtectedLayout({
+export default function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { data: session, isPending } = useSession();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isPending && !session) {
-      router.push('/login');
-    }
-  }, [session, isPending, router]);
-
-  // Show loading state while checking auth
-  if (isPending) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
-
-  // Don't render anything if not authenticated
-  if (!session) {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar />
-      <main className="lg:pl-64">
-        <div className="p-6 lg:p-8 pt-16 lg:pt-8">{children}</div>
-      </main>
-    </div>
+    <UserProvider>
+      <UsageProvider>
+        <div className="min-h-screen bg-background flex flex-col">
+          <Sidebar />
+          <div className="lg:pl-64 flex flex-col flex-1">
+            <UsageBanner />
+            <main className="flex-1">
+              <div className="p-6 lg:p-8 pt-16 lg:pt-8">{children}</div>
+            </main>
+          </div>
+          <LimitExceededDialog />
+        </div>
+      </UsageProvider>
+    </UserProvider>
   );
 }

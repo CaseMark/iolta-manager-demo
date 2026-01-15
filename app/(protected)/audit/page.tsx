@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useSession } from '@/lib/auth/client';
+import { useSession } from '@/lib/contexts/user-context';
 import { getAuditLogs } from '@/lib/storage';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card, CardContent } from '@/components/ui/card';

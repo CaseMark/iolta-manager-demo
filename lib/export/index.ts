@@ -1047,7 +1047,7 @@ function generateHTMLPreview(data: ReportData): string {
   };
 
   let html = `
-    <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.6; padding: 60px 80px; max-width: 1200px; margin: 0 auto; background: ${colors.cardBg}; color: ${colors.foreground};">
+    <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.6; padding: 60px 80px; margin: 0 auto; background: ${colors.cardBg}; color: ${colors.foreground};">
       <div style="text-align: center; border-bottom: 2px solid ${colors.border}; padding-bottom: 32px; margin-bottom: 48px;">
         <div style="font-size: 12px; color: ${colors.accent}; margin-bottom: 16px; letter-spacing: 0.5px; font-weight: 600; text-transform: uppercase;">${BRANDING_TEXT}</div>
         <div style="font-family: 'Spectral', Georgia, serif; font-size: 28px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: ${colors.foreground};">${data.title}</div>

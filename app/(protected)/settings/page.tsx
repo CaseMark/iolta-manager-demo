@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useSession } from '@/lib/auth/client';
+import { useSession } from '@/lib/contexts/user-context';
 import { getTrustAccountSettings, saveTrustAccountSettings, createAuditLog } from '@/lib/storage';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

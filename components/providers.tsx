@@ -4,9 +4,10 @@
  * Application Providers
  *
  * Wraps the app with all necessary context providers.
+ * Currently minimal since auth is not required and
+ * the protected layout handles UserProvider/UsageProvider.
  */
 
-import { AuthProvider } from '@/lib/auth/client';
 import type { ReactNode } from 'react';
 
 interface ProvidersProps {
@@ -14,5 +15,5 @@ interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps) {
-  return <AuthProvider>{children}</AuthProvider>;
+  return <>{children}</>;
 }

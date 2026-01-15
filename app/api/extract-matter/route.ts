@@ -13,6 +13,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractStructuredData } from '@/lib/case-dev/client';
 import { storeFile, deleteFile, isBlobAvailable } from '@/lib/file-store';
+import {
+  parseUsageFromRequest,
+  checkUsageLimitsServer,
+  createLimitExceededResponse,
+} from '@/lib/usage/server';
 import type { ExtractedMatterInfo, MatterExtractionResponse } from '@/types/extraction';
 
 const CASE_API_BASE = process.env.CASE_API_URL || 'https://api.case.dev';
@@ -342,6 +347,14 @@ async function processWithOCR(file: File): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
+    // Check demo usage limits before processing
+    const usage = parseUsageFromRequest(request);
+    const usageCheck = checkUsageLimitsServer(usage);
+
+    if (!usageCheck.isAllowed) {
+      return NextResponse.json(createLimitExceededResponse(usageCheck), { status: 429 });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
 

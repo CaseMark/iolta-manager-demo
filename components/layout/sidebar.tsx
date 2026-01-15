@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useAuth, useSession } from '@/lib/auth/client';
+import { useUser } from '@/lib/contexts/user-context';
 import {
   House,
   Users,
@@ -18,7 +18,6 @@ import {
   FileText,
   ClockCounterClockwise,
   Gear,
-  SignOut,
   List,
   X,
 } from '@phosphor-icons/react';
@@ -43,14 +42,8 @@ const navItems: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { signOut } = useAuth();
-  const { data: session } = useSession();
+  const { user } = useUser();
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  const handleSignOut = async () => {
-    await signOut();
-    window.location.href = '/login';
-  };
 
   return (
     <>
@@ -123,31 +116,21 @@ export function Sidebar() {
           </ul>
         </nav>
 
-        {/* User section */}
+        {/* User section - simplified for demo */}
         <div className="p-3 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 px-3 py-2 mb-2">
+          <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center">
               <span className="text-sm font-semibold text-sidebar-foreground">
-                {session?.user.name.charAt(0).toUpperCase()}
+                {user.name.charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">{session?.user.name}</p>
+              <p className="text-sm font-medium text-sidebar-foreground truncate">{user.name}</p>
               <p className="text-xs text-sidebar-foreground/60 truncate">
-                {session?.user.email}
+                Demo Mode
               </p>
             </div>
           </div>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-            onClick={handleSignOut}
-          >
-            <SignOut size={20} className="mr-2" />
-            Sign Out
-          </Button>
         </div>
       </aside>
     </>

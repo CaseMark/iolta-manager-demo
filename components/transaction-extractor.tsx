@@ -25,6 +25,7 @@ import {
   ArrowDown,
   ArrowUp,
 } from '@phosphor-icons/react';
+import { useUsage } from '@/lib/contexts/usage-context';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Configure pdf.js worker
@@ -67,6 +68,7 @@ export function TransactionExtractor({ onExtracted, onClose }: TransactionExtrac
   const [isDragging, setIsDragging] = useState(false);
   const [extractionProgress, setExtractionProgress] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { getUsageHeader, addLLMUsage, isLimitExceeded } = useUsage();
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -157,6 +159,12 @@ export function TransactionExtractor({ onExtracted, onClose }: TransactionExtrac
       return;
     }
 
+    // Check if limits are already exceeded
+    if (isLimitExceeded) {
+      setError('Demo usage limit reached. Create an account at console.case.dev for unlimited access.');
+      return;
+    }
+
     setExtracting(true);
     setError(null);
     setExtractionProgress(null);
@@ -185,16 +193,31 @@ export function TransactionExtractor({ onExtracted, onClose }: TransactionExtrac
       }
       formData.append('textContent', textContent);
 
+      // Build headers with usage info
+      const headers: Record<string, string> = {};
+      const usageHeader = getUsageHeader();
+      if (usageHeader) {
+        headers['X-Demo-Usage'] = usageHeader;
+      }
+
       const response = await fetch('/api/extract-transaction', {
         method: 'POST',
+        headers,
         body: formData,
       });
 
       const result = await response.json();
 
       if (!response.ok) {
+        // Handle rate limit response
+        if (response.status === 429) {
+          throw new Error(result.message || 'Demo usage limit reached. Create an account at console.case.dev for unlimited access.');
+        }
         throw new Error(result.error || 'Failed to extract information');
       }
+
+      // Track usage (estimate ~1000 input tokens, ~800 output tokens for transaction extraction)
+      addLLMUsage(1000, 800);
 
       setExtractedData(result.data);
       setExtractionProgress(null);

@@ -37,7 +37,7 @@ import type { NextRequest } from "next/server";
  * - "public-by-default": Only protect routes in `protectedRoutes`
  * - "private-by-default": Protect everything except `publicRoutes`
  */
-const AUTH_MODE: "disabled" | "public-by-default" | "private-by-default" = "public-by-default";
+const AUTH_MODE: "disabled" | "public-by-default" | "private-by-default" = "disabled";
 
 /**
  * Routes that require authentication (used in "public-by-default" mode)

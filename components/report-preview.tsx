@@ -445,13 +445,12 @@ export function ReportPreview({
               )}
               {format === 'docx' && preview.htmlPreview && (
                 <div
-                  className="bg-card rounded-lg shadow-sm mx-auto my-6"
-                  style={{ maxWidth: '1000px' }}
+                  className="bg-card rounded-lg shadow-sm mx-auto my-6 w-full"
                   dangerouslySetInnerHTML={{ __html: preview.htmlPreview }}
                 />
               )}
               {format === 'txt' && preview.content && (
-                <div className="bg-card rounded-lg shadow-sm mx-auto my-6 max-w-4xl">
+                <div className="bg-card rounded-lg shadow-sm mx-auto my-6 w-full max-w-5xl">
                   <pre className="p-8 font-mono text-sm whitespace-pre-wrap text-foreground">{preview.content}</pre>
                 </div>
               )}

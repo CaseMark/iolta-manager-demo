@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useSession } from '@/lib/auth/client';
+import { useSession } from '@/lib/contexts/user-context';
 import {
   getClientWithMatters,
   updateClient,

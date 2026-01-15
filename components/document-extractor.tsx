@@ -33,6 +33,7 @@ import {
   ArrowUp,
   Info,
 } from '@phosphor-icons/react';
+import { useUsage } from '@/lib/contexts/usage-context';
 import type { ExtractedMatterInfo } from '@/types/extraction';
 
 // Re-export the type for backwards compatibility
@@ -63,6 +64,7 @@ export function DocumentExtractor({ onExtracted, onClientCreated, onClose }: Doc
   const [isDragging, setIsDragging] = useState(false);
   const [extractionProgress, setExtractionProgress] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { getUsageHeader, addLLMUsage, isLimitExceeded } = useUsage();
 
   // Collapsible sections - only matter expanded by default
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -129,6 +131,12 @@ export function DocumentExtractor({ onExtracted, onClientCreated, onClose }: Doc
       return;
     }
 
+    // Check if limits are already exceeded
+    if (isLimitExceeded) {
+      setError('Demo usage limit reached. Create an account at console.case.dev for unlimited access.');
+      return;
+    }
+
     setExtracting(true);
     setError(null);
     setExtractionProgress(null);
@@ -164,16 +172,31 @@ export function DocumentExtractor({ onExtracted, onClientCreated, onClose }: Doc
 
       setExtractionProgress('Analyzing document with AI...');
 
+      // Build headers with usage info
+      const headers: Record<string, string> = {};
+      const usageHeader = getUsageHeader();
+      if (usageHeader) {
+        headers['X-Demo-Usage'] = usageHeader;
+      }
+
       const response = await fetch('/api/extract-matter', {
         method: 'POST',
+        headers,
         body: formData,
       });
 
       const result = await response.json();
 
       if (!response.ok) {
+        // Handle rate limit response
+        if (response.status === 429) {
+          throw new Error(result.message || 'Demo usage limit reached. Create an account at console.case.dev for unlimited access.');
+        }
         throw new Error(result.error || 'Failed to extract information');
       }
+
+      // Track usage (estimate ~2000 input tokens, ~1500 output tokens for matter extraction)
+      addLLMUsage(2000, 1500);
 
       setExtractedData(result.data);
       setExtractionProgress(null);
