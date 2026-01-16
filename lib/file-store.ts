@@ -20,7 +20,7 @@ interface BlobReference {
   pathname: string;
 }
 
-// In-memory store for local development fallback
+// In-memory store fallback (won't work for OCR - requires Blob)
 const localFileStore = new Map<string, StoredFile>();
 
 // Track blob URLs for cleanup
@@ -35,7 +35,7 @@ function isBlobConfigured(): boolean {
 
 /**
  * Store a file and return its public URL
- * Returns null if Blob is not configured (local dev)
+ * Returns null if Blob is not configured
  */
 export async function storeFile(
   id: string,
@@ -62,7 +62,7 @@ export async function storeFile(
     return blob.url;
   }
 
-  // Local development: in-memory storage (won't work for OCR)
+  // Fallback: in-memory storage (won't work for OCR)
   localFileStore.set(id, {
     buffer,
     mimeType,
@@ -78,7 +78,7 @@ export async function storeFile(
 }
 
 /**
- * Retrieve a stored file (local development only)
+ * Retrieve a stored file (in-memory fallback only)
  */
 export function getFile(id: string): StoredFile | null {
   const file = localFileStore.get(id);

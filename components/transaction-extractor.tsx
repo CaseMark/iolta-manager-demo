@@ -4,7 +4,10 @@
  * Transaction Extractor Component
  *
  * Upload a document and extract transaction information using AI.
- * Supports PDF (via pdf.js), text files, and manual text input.
+ * Supports:
+ * - TXT files: Read directly
+ * - PDF files: OCR via Case.dev API (requires Vercel Blob storage)
+ * - Manual text input: Paste text directly
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -24,14 +27,9 @@ import {
   CurrencyDollar,
   ArrowDown,
   ArrowUp,
+  Info,
 } from '@phosphor-icons/react';
 import { useUsage } from '@/lib/contexts/usage-context';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Configure pdf.js worker
-if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-}
 
 export interface ExtractedTransactionInfo {
   transactionType: 'deposit' | 'disbursement' | null;
@@ -101,55 +99,11 @@ export function TransactionExtractor({ onExtracted, onClose }: TransactionExtrac
     }
   }, []);
 
-  /**
-   * Extract text from PDF using pdf.js
-   */
-  const extractTextFromPdf = async (file: File): Promise<string> => {
-    setExtractionProgress('Loading PDF...');
-
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-    const textParts: string[] = [];
-    const totalPages = pdf.numPages;
-
-    for (let i = 1; i <= totalPages; i++) {
-      setExtractionProgress(`Extracting page ${i} of ${totalPages}...`);
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item) => ('str' in item ? item.str : ''))
-        .join(' ');
-      textParts.push(pageText);
-    }
-
-    setExtractionProgress(null);
-    const fullText = textParts.join('\n\n');
-
-    if (!fullText.trim()) {
-      throw new Error('PDF appears to be empty or contains only images. Please paste the text manually.');
-    }
-
-    return fullText;
-  };
-
-  /**
-   * Extract text from file based on type
-   */
-  const extractTextFromFile = async (file: File): Promise<string> => {
-    if (file.type === 'text/plain') {
-      const text = await file.text();
-      if (!text.trim()) {
-        throw new Error('Text file is empty.');
-      }
-      return text;
-    }
-
-    if (file.type === 'application/pdf') {
-      return extractTextFromPdf(file);
-    }
-
-    throw new Error('Unsupported file type. Please upload a .txt or .pdf file, or paste text directly.');
+  const getFileTypeInfo = (file: File) => {
+    const fileName = file.name.toLowerCase();
+    const isPDF = file.type === 'application/pdf' || fileName.endsWith('.pdf');
+    const isTXT = file.type === 'text/plain' || fileName.endsWith('.txt');
+    return { isPDF, isTXT, requiresOCR: isPDF };
   };
 
   const handleExtract = async () => {
@@ -170,28 +124,35 @@ export function TransactionExtractor({ onExtracted, onClose }: TransactionExtrac
     setExtractionProgress(null);
 
     try {
-      let textContent: string;
+      const formData = new FormData();
 
       if (inputMode === 'file' && file) {
-        textContent = await extractTextFromFile(file);
-      } else {
-        textContent = manualText.trim();
-      }
+        const { requiresOCR, isTXT } = getFileTypeInfo(file);
 
-      if (textContent.length < 20) {
-        throw new Error('Text is too short. Please provide more document content for accurate extraction.');
+        if (requiresOCR) {
+          setExtractionProgress('Uploading document for OCR processing...');
+        } else if (isTXT) {
+          setExtractionProgress('Reading document...');
+        }
+
+        formData.append('file', file);
+        // For TXT files, also send the text content as a fallback
+        if (isTXT) {
+          const textContent = await file.text();
+          formData.append('textContent', textContent);
+        }
+      } else {
+        // Manual text input
+        const textContent = manualText.trim();
+        if (textContent.length < 20) {
+          throw new Error('Text is too short. Please provide more document content for accurate extraction.');
+        }
+        const blob = new Blob([textContent], { type: 'text/plain' });
+        formData.append('file', blob, 'pasted-text.txt');
+        formData.append('textContent', textContent);
       }
 
       setExtractionProgress('Analyzing document with AI...');
-
-      const formData = new FormData();
-      if (file && inputMode === 'file') {
-        formData.append('file', file);
-      } else {
-        const blob = new Blob([textContent], { type: 'text/plain' });
-        formData.append('file', blob, 'pasted-text.txt');
-      }
-      formData.append('textContent', textContent);
 
       // Build headers with usage info
       const headers: Record<string, string> = {};
@@ -313,57 +274,72 @@ export function TransactionExtractor({ onExtracted, onClose }: TransactionExtrac
             </div>
 
             {inputMode === 'file' ? (
-              <div
-                className={`
-                  relative border-2 border-dashed rounded-lg p-6 transition-colors cursor-pointer
-                  ${isDragging ? 'border-primary bg-primary/5' : 'border-muted hover:border-primary/50'}
-                  ${file ? 'bg-muted/50' : ''}
-                `}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".txt,.pdf"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
+              <>
+                <div
+                  className={`
+                    relative border-2 border-dashed rounded-lg p-6 transition-colors cursor-pointer
+                    ${isDragging ? 'border-primary bg-primary/5' : 'border-muted hover:border-primary/50'}
+                    ${file ? 'bg-muted/50' : ''}
+                  `}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".txt,.pdf,application/pdf,text/plain"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
 
-                {file ? (
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <FileText size={20} className="text-primary" />
+                  {file ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <FileText size={20} className="text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{file.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {(file.size / 1024).toFixed(1)} KB
+                          {file && getFileTypeInfo(file).requiresOCR && (
+                            <span className="ml-2 text-primary">(OCR)</span>
+                          )}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFile(null);
+                        }}
+                      >
+                        <X size={16} />
+                      </Button>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{file.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {(file.size / 1024).toFixed(1)} KB
+                  ) : (
+                    <div className="text-center">
+                      <Upload size={32} className="mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm font-medium">Drop a document here</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Invoices, checks, receipts (.txt, .pdf)
                       </p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFile(null);
-                      }}
-                    >
-                      <X size={16} />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <Upload size={32} className="mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm font-medium">Drop a document here</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Invoices, checks, receipts (.txt, .pdf)
+                  )}
+                </div>
+
+                {/* OCR Info Note */}
+                {file && getFileTypeInfo(file).requiresOCR && (
+                  <div className="flex items-start gap-2 p-3 bg-muted text-muted-foreground rounded-lg text-xs">
+                    <Info size={14} className="shrink-0 mt-0.5" />
+                    <p>
+                      PDF files use OCR processing. Requires BLOB_READ_WRITE_TOKEN to be configured.
                     </p>
                   </div>
                 )}
-              </div>
+              </>
             ) : (
               <div className="space-y-2">
                 <Textarea

@@ -182,7 +182,7 @@ export default function NewHoldPage() {
                   required
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select a matter" />
                   </SelectTrigger>
                   <SelectContent>
                     {matters.map((matter) => (
@@ -215,7 +215,7 @@ export default function NewHoldPage() {
               <Label htmlFor="type">Hold Type *</Label>
               <Select name="type" defaultValue="retainer" required>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select hold type" />
                 </SelectTrigger>
                 <SelectContent>
                   {HOLD_TYPES.map((type) => (

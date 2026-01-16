@@ -215,7 +215,7 @@ export default function ReportsPage() {
               <label className="text-sm font-medium">Report Period</label>
               <Select value={selectedMonth} onValueChange={(v) => v && setSelectedMonth(v)}>
                 <SelectTrigger className="w-48">
-                  <SelectValue />
+                  <SelectValue placeholder="Select month" />
                 </SelectTrigger>
                 <SelectContent>
                   {Array.from({ length: 12 }, (_, i) => {

@@ -39,7 +39,6 @@
     "file-saver": "^2.0.5",
     "jspdf": "^4.0.0",
     "next": "16.1.1",
-    "pdfjs-dist": "^5.4.530",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "shadcn": "^3.6.2",

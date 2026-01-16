@@ -414,7 +414,7 @@ export default function NewMatterPage() {
                       onValueChange={(v) => v && setSelectedClientId(v)}
                     >
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Select a client" />
                       </SelectTrigger>
                       <SelectContent>
                         {/* Include createdClient if not already in clients list */}
@@ -470,7 +470,7 @@ export default function NewMatterPage() {
                     onValueChange={(v) => v && setSelectedPracticeArea(v)}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select practice area" />
                     </SelectTrigger>
                     <SelectContent>
                       {PRACTICE_AREAS.map((area) => (

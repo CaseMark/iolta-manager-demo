@@ -6,7 +6,7 @@
  *
  * Supports:
  * - TXT files: Read directly
- * - PDF/DOCX files: OCR via Case.dev API (requires Vercel Blob in production)
+ * - PDF/DOCX files: OCR via Case.dev API (requires Vercel Blob storage)
  * - Manual text input: Pass textContent in form data
  */
 
@@ -240,8 +240,8 @@ async function processWithOCR(file: File): Promise<string> {
 
   if (!isBlobAvailable()) {
     throw new Error(
-      'PDF/DOCX extraction requires Vercel Blob storage (production only). ' +
-      'For local development, use TXT files or paste text directly.'
+      'PDF/DOCX extraction requires Vercel Blob storage. ' +
+      'Please set BLOB_READ_WRITE_TOKEN in your environment, or use TXT files / paste text directly.'
     );
   }
 

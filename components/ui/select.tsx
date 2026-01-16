@@ -22,11 +22,10 @@ function SelectValue({ className, placeholder, ...props }: SelectPrimitive.Value
   return (
     <SelectPrimitive.Value
       data-slot="select-value"
-      className={cn("flex flex-1 text-left", className)}
+      className={cn("flex flex-1 text-left data-[placeholder]:text-muted-foreground", className)}
+      placeholder={placeholder}
       {...props}
-    >
-      {(value) => value || <span className="text-muted-foreground">{placeholder}</span>}
-    </SelectPrimitive.Value>
+    />
   )
 }
 

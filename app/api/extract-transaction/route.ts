@@ -2,16 +2,22 @@
  * Extract Transaction Information from Document
  *
  * API route that uses AI to extract transaction information from uploaded documents.
- * Supports invoices, receipts, checks, wire transfer confirmations, etc.
+ * Supports:
+ * - TXT files: Read directly
+ * - PDF files: OCR via Case.dev API (requires Vercel Blob storage)
+ * - Manual text input: Pass textContent in form data
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { extractStructuredData } from '@/lib/case-dev/client';
+import { storeFile, deleteFile, isBlobAvailable } from '@/lib/file-store';
 import {
   parseUsageFromRequest,
   checkUsageLimitsServer,
   createLimitExceededResponse,
 } from '@/lib/usage/server';
+
+const CASE_API_BASE = process.env.CASE_API_URL || 'https://api.case.dev';
 
 export interface ExtractedTransactionInfo {
   transactionType: 'deposit' | 'disbursement' | null;
@@ -121,6 +127,144 @@ const EXTRACTION_INSTRUCTIONS = `You are an expert financial document analyst fo
 - Always try to determine transactionType based on context
 - If the document doesn't appear to be a financial document, set overall confidence to "low"`;
 
+/**
+ * Process document through Case.dev OCR API
+ * Uploads to Vercel Blob, submits to OCR, polls for completion
+ */
+async function processWithOCR(file: File): Promise<string> {
+  const apiKey = process.env.CASE_API_KEY;
+  if (!apiKey) {
+    throw new Error('CASE_API_KEY is required for PDF OCR processing.');
+  }
+
+  if (!isBlobAvailable()) {
+    throw new Error(
+      'PDF extraction requires Vercel Blob storage. ' +
+      'Please set BLOB_READ_WRITE_TOKEN in your environment, or use TXT files / paste text directly.'
+    );
+  }
+
+  // Generate unique ID and prepare file
+  const fileId = crypto.randomUUID();
+  const buffer = await file.arrayBuffer();
+
+  // Fix MIME type if needed
+  let mimeType = file.type;
+  if (!mimeType || mimeType === 'application/octet-stream') {
+    if (file.name.endsWith('.pdf')) mimeType = 'application/pdf';
+  }
+
+  // Upload to Vercel Blob
+  const fileUrl = await storeFile(fileId, buffer, mimeType, file.name);
+
+  if (!fileUrl) {
+    throw new Error('Failed to upload file to storage.');
+  }
+
+  try {
+    // Submit to Case.dev OCR
+    const submitResponse = await fetch(`${CASE_API_BASE}/ocr/v1/process`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        document_url: fileUrl,
+      }),
+    });
+
+    if (!submitResponse.ok) {
+      const errorText = await submitResponse.text();
+      throw new Error(`OCR submission failed: ${errorText}`);
+    }
+
+    const submitResult = await submitResponse.json();
+    const jobId = submitResult.job_id || submitResult.id || submitResult.jobId;
+
+    if (!jobId) {
+      throw new Error('OCR service did not return a job ID');
+    }
+
+    // Poll for completion (max 90 seconds)
+    const statusUrl = `${CASE_API_BASE}/ocr/v1/${jobId}`;
+    const maxAttempts = 45;
+    const pollInterval = 2000;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+
+      const statusResponse = await fetch(statusUrl, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+
+      if (!statusResponse.ok) continue;
+
+      const status = await statusResponse.json();
+
+      if (status.status === 'completed') {
+        let text = status.text || status.result?.text || status.extracted_text || status.content;
+
+        // If text is in pages array, concatenate all page texts
+        if (!text && status.pages && Array.isArray(status.pages)) {
+          text = status.pages
+            .map((page: { text?: string; content?: string }) => page.text || page.content || '')
+            .join('\n\n');
+        }
+
+        // Try download/json endpoint if not in status response
+        if (!text) {
+          const jsonUrl = `${CASE_API_BASE}/ocr/v1/${jobId}/download/json`;
+          const jsonResponse = await fetch(jsonUrl, {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${apiKey}` },
+          });
+
+          if (jsonResponse.ok) {
+            const contentType = jsonResponse.headers.get('content-type') || '';
+
+            if (contentType.includes('application/json')) {
+              const jsonResult = await jsonResponse.json();
+
+              // Try common field patterns
+              text = jsonResult.text || jsonResult.extracted_text || jsonResult.content;
+
+              // Check pages array
+              if (!text && jsonResult.pages && Array.isArray(jsonResult.pages)) {
+                text = jsonResult.pages
+                  .map((page: { text?: string; content?: string }) => page.text || page.content || '')
+                  .join('\n\n');
+              }
+            } else {
+              // Plain text response
+              text = await jsonResponse.text();
+            }
+          } else {
+            console.error('OCR result fetch failed:', jsonResponse.status, await jsonResponse.text());
+          }
+        }
+
+        if (!text) {
+          throw new Error('OCR completed but no text was returned. The document may be empty or unscannable.');
+        }
+
+        return text;
+      }
+
+      if (status.status === 'failed') {
+        const errorMsg = status.error || status.message || 'Unknown error';
+        throw new Error(`OCR processing failed: ${errorMsg}`);
+      }
+    }
+
+    throw new Error('OCR processing timed out after 90 seconds');
+  } finally {
+    // Always clean up the uploaded file
+    await deleteFile(fileId);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Check demo usage limits before processing
@@ -141,20 +285,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get pre-extracted text content
     const textContent = formData.get('textContent') as string | null;
+    const fileName = file.name.toLowerCase();
+    const fileType = file.type;
 
     let documentText: string;
+    let extractionMethod: 'direct' | 'ocr' | 'provided' = 'direct';
 
-    if (textContent) {
+    // Determine how to extract text
+    if (textContent && textContent.trim().length > 10) {
+      // Text content provided (from client-side or manual input)
       documentText = textContent;
-    } else if (file.type === 'text/plain') {
+      extractionMethod = 'provided';
+    } else if (fileType === 'text/plain' || fileName.endsWith('.txt')) {
+      // TXT files: read directly
       documentText = await file.text();
+      extractionMethod = 'direct';
     } else {
-      return NextResponse.json(
-        { error: 'Unsupported file type. Please upload a text file or provide extracted text.' },
-        { status: 400 }
-      );
+      // PDF: use OCR
+      const isPDF = fileType === 'application/pdf' || fileName.endsWith('.pdf');
+
+      if (!isPDF) {
+        return NextResponse.json(
+          { error: 'Unsupported file type. Please upload PDF or TXT files.' },
+          { status: 400 }
+        );
+      }
+
+      // Process with OCR
+      documentText = await processWithOCR(file);
+      extractionMethod = 'ocr';
     }
 
     if (!documentText || documentText.trim().length < 10) {
@@ -184,6 +344,7 @@ export async function POST(request: NextRequest) {
         filename: file.name,
         fileSize: file.size,
         extractedAt: new Date().toISOString(),
+        extractionMethod,
       },
     });
   } catch (error) {
@@ -196,6 +357,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'AI service not configured. Please set up your CASE_API_KEY environment variable.' },
         { status: 503 }
+      );
+    }
+
+    if (errorMessage.includes('Vercel Blob') || errorMessage.includes('BLOB_READ_WRITE_TOKEN')) {
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: 400 }
+      );
+    }
+
+    if (errorMessage.includes('OCR')) {
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: 500 }
       );
     }
 

@@ -6,7 +6,7 @@
  * Upload a document and extract comprehensive matter information using AI.
  * Supports:
  * - TXT files: Read directly
- * - PDF/DOCX files: OCR via Case.dev API (production only, requires Vercel Blob)
+ * - PDF/DOCX files: OCR via Case.dev API (requires Vercel Blob storage)
  * - Manual text input: Paste text directly
  *
  * Extracts matter details, transactions, holds, and settlement breakdowns.
@@ -421,8 +421,7 @@ export function DocumentExtractor({ onExtracted, onClientCreated, onClose }: Doc
               <div className="flex items-start gap-2 p-3 bg-muted text-muted-foreground rounded-lg text-xs">
                 <Info size={14} className="shrink-0 mt-0.5" />
                 <p>
-                  PDF and DOCX files use OCR processing which is only available in production.
-                  For local development, use TXT files or paste text directly.
+                  PDF and DOCX files use OCR processing. Requires BLOB_READ_WRITE_TOKEN to be configured.
                 </p>
               </div>
             )}

@@ -156,7 +156,7 @@ export default function SettingsPage() {
                 <Label htmlFor="state">State Bar Jurisdiction *</Label>
                 <Select value={state} onValueChange={(v) => v && setState(v)} required>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select state" />
                   </SelectTrigger>
                   <SelectContent>
                     {US_STATES.map((s) => (

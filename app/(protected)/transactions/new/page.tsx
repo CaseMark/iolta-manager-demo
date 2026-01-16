@@ -298,7 +298,7 @@ export default function NewTransactionPage() {
                   required
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select a matter" />
                   </SelectTrigger>
                   <SelectContent>
                     {matters.map((matter) => (
